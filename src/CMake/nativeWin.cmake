@@ -68,7 +68,6 @@ if (MSVC)
     /DEFAULTLIB:ucrt$<$<CONFIG:Debug>:d>.lib       # Hybrid CRT
     /DEBUG      # instruct linker to create debugging info
     /guard:cf   # enable linker control guard feature (CFG) to prevent attackers from redirecting execution to unsafe locations
-    /CETCOMPAT  # enable Control-flow Enforcement Technology (CET) Shadow Stack mitigation
     )
 endif()
 
