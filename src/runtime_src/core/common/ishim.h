@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2019-2022 Xilinx, Inc.  All rights reserved.
-// Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 #ifndef core_common_ishim_h
 #define core_common_ishim_h
 
@@ -20,8 +20,8 @@
 #include "xrt/xrt_graph.h"
 #include "xrt/xrt_hw_context.h"
 #include "xrt/xrt_uuid.h"
-#include "experimental/xrt_fence.h"
-#include "experimental/xrt-next.h"
+#include "xrt/experimental/xrt_fence.h"
+#include "xrt/experimental/xrt-next.h"
 
 #include <stdexcept>
 #include <condition_variable>
@@ -44,6 +44,7 @@ struct ishim
   class not_supported_error : public xrt_core::error
   {
   public:
+    explicit
     not_supported_error(const std::string& msg)
       : xrt_core::error{std::errc::not_supported, msg}
     {}
@@ -156,6 +157,15 @@ struct ishim
                     const xrt::hw_context::cfg_param_type& /*cfg_params*/,
                     xrt::hw_context::access_mode /*mode*/) const = 0;
 
+  // creates hw context using partition size
+  // Used in elf flow
+  // This function is not supported by all platforms
+  virtual std::unique_ptr<hwctx_handle>
+  create_hw_context(uint32_t /*partition_size*/,
+                    const xrt::hw_context::cfg_param_type& /*cfg_params*/,
+                    xrt::hw_context::access_mode /*mode*/) const
+  { throw not_supported_error{__func__}; }
+
   // Registers an xclbin with shim, but does not load it.
   // This is no-op for most platform shims
   virtual void
@@ -253,6 +263,7 @@ template <typename DeviceType>
 struct shim : public DeviceType
 {
   template <typename ...Args>
+  explicit
   shim(Args&&... args)
     : DeviceType(std::forward<Args>(args)...)
   {}
@@ -410,6 +421,7 @@ template <typename DeviceType>
 struct noshim : public DeviceType
 {
   template <typename ...Args>
+  explicit
   noshim(Args&&... args)
     : DeviceType(std::forward<Args>(args)...)
   {}

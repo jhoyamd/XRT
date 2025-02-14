@@ -12,6 +12,7 @@
 #include <boost/program_options.hpp>
 
 #include "JSONConfigurable.h"
+#include "SubCmdJsonObjects.h"
 #include "OptionOptions.h"
   
 class SubCmd : public JSONConfigurable {
@@ -21,6 +22,7 @@ class SubCmd : public JSONConfigurable {
 
  public:
    virtual void execute(const SubCmdOptions &_options) const = 0;
+   virtual void setOptionConfig(const boost::property_tree::ptree &config);
 
  public:
    const std::string &getName() const { return m_subCmdName; };
@@ -85,6 +87,7 @@ public:
   boost::program_options::options_description m_hiddenOptions;
   boost::program_options::positional_options_description m_positionals;
   boost::property_tree::ptree m_commandConfig;
+  SubCmdJsonObjects::JsonConfig m_jsonConfig;
 
   template<class T>
   std::vector<std::shared_ptr<T>>

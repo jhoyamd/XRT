@@ -10,6 +10,7 @@ BUILDDIR=$(readlink -f $(dirname ${BASH_SOURCE[0]}))
 CORE=`grep -c ^processor /proc/cpuinfo`
 
 CMAKE="/mnt/c/Program Files/CMake/bin/cmake.exe"
+CPACK="/mnt/c/Program Files/CMake/bin/cpack.exe"
 EXT_DIR=/mnt/c/Xilinx/xrt/ext.new
 BOOST=$EXT_DIR
 KHRONOS=$EXT_DIR
@@ -28,6 +29,7 @@ usage()
     echo "[-j <n>]                   Compile parallel (default: system cores)"
     echo "[-dbg]                     Build debug library (default: optimized)"
     echo "[-all]                     Build debug and optimized library (default: optimized)"
+    echo "[-sdk]                     Create NSIS XRT SDK NPU Installer (requires NSIS installed)."
 
     exit 1
 }
@@ -38,6 +40,10 @@ nocmake=0
 noabi=0
 dbg=0
 release=1
+sdk=0
+alveo_build=0
+npu_build=0
+base_build=0
 cmake_flags="-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -79,6 +85,21 @@ while [ $# -gt 0 ]; do
             cmake_flags+= " -DXRT_ENABLE_HIP=ON"
             shift
             ;;
+        -base)
+            shift
+            base_build=1
+            cmake_flags+= " -DXRT_BASE=1"
+            ;;
+        -alveo)
+            shift
+            alveo_build=1
+            cmake_flags+=" -DXRT_ALVEO=1"
+            ;;
+	-npu)
+            shift
+	    npu_build=1
+	    cmake_flags+=" -DXRT_NPU=1"
+            ;;
         -j)
             shift
             jcore=$1
@@ -92,12 +113,23 @@ while [ $# -gt 0 ]; do
             cmake_flags+=" -DDISABLE_ABI_CHECK=1"
             shift
             ;;
+        -sdk)
+            shift
+            npu_build=1
+	    cmake_flags+=" -DXRT_NPU=1"
+            sdk=1
+            ;;
         *)
             echo "unknown option '$1'"
             usage
             ;;
     esac
 done
+
+if [[ $((npu_build + alveo_build + base_build)) > 1 ]]; then
+    echo "build.sh: -npu, -alveo, -base are mutually exclusive"
+    exit 1
+fi
 
 BOOST=$(sed -e 's|/mnt/\([A-Za-z]\)/\(.*\)|\1:/\2|' -e 's|/|\\|g' <<< $BOOST)
 KHRONOS=$(sed -e 's|/mnt/\([A-Za-z]\)/\(.*\)|\1:/\2|' -e 's|/|\\|g' <<< $KHRONOS)
@@ -116,17 +148,15 @@ cmake_flags+=" -DMSVC_PARALLEL_JOBS=$jcore"
 cmake_flags+=" -DKHRONOS=$KHRONOS"
 cmake_flags+=" -DBOOST_ROOT=$BOOST"
 
-echo "${cmake_flags[@]}"
-
 if [ $dbg == 1 ]; then
     cmake_flags+=" -DCMAKE_BUILD_TYPE=Debug"
     mkdir -p WDebug
     cd WDebug
 
     if [ $nocmake == 0 ]; then
+        echo "${cmake_flags[@]}"
         "$CMAKE" -G "Visual Studio 17 2022" $cmake_flags ../../src
     fi
-    "$CMAKE" --build . --verbose --config Debug
     "$CMAKE" --build . --verbose --config Debug --target install
     cd $BUILDDIR
 fi
@@ -136,10 +166,15 @@ if [ $release == 1 ]; then
     mkdir -p WRelease
     cd WRelease
     if [ $nocmake == 0 ]; then
+        echo "${cmake_flags[@]}"
         "$CMAKE" -G "Visual Studio 17 2022" $cmake_flags ../../src
     fi
-    "$CMAKE" --build . --verbose --config Release
     "$CMAKE" --build . --verbose --config Release --target install
+
+    if [[ $sdk == 1 && $npu_build == 1 ]]; then
+        echo "Creating SDK installer ..."
+        "$CPACK" -G NSIS -C Release
+    fi
     cd $BUILDDIR
 fi
 

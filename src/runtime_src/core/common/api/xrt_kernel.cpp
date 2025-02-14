@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2020-2022 Xilinx, Inc. All rights reserved.
-// Copyright (C) 2023-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023-2025 Advanced Micro Devices, Inc. All rights reserved.
 
 // This file implements XRT kernel APIs as declared in
 // core/include/experimental/xrt_kernel.h
@@ -8,17 +8,17 @@
 #define XCL_DRIVER_DLL_EXPORT  // exporting xrt_kernel.h
 #define XRT_CORE_COMMON_SOURCE // in same dll as core_common
 #include "core/include/xrt/xrt_kernel.h"
-#include "core/include/experimental/xrt_kernel.h"
+#include "core/include/xrt/experimental/xrt_kernel.h"
 
 #include "core/common/shim/buffer_handle.h"
 #include "core/common/shim/hwctx_handle.h"
 
 #include "core/include/xrt/xrt_hw_context.h"
-#include "core/include/experimental/xrt_ext.h"
-#include "core/include/experimental/xrt_mailbox.h"
-#include "core/include/experimental/xrt_module.h"
-#include "core/include/experimental/xrt_xclbin.h"
-#include "core/include/ert.h"
+#include "core/include/xrt/experimental/xrt_ext.h"
+#include "core/include/xrt/experimental/xrt_mailbox.h"
+#include "core/include/xrt/experimental/xrt_module.h"
+#include "core/include/xrt/experimental/xrt_xclbin.h"
+#include "core/include/xrt/detail/ert.h"
 #include "core/include/ert_fa.h"
 
 #include "bo.h"
@@ -502,6 +502,8 @@ class ip_context
       // collect the memory connections for each IP argument
       for (const auto& arg : ip.get_args()) {
         auto argidx = arg.get_index();
+        if (argidx == xrt_core::xclbin::kernel_argument::no_index)
+          throw xrt_core::error("Invalid kernel argument index in xclbin");
 
         for (const auto& mem : arg.get_mems()) {
           auto memidx = mem.get_index();
@@ -587,7 +589,7 @@ public:
     return ipctx;
   }
 
-  [[nodiscard]] access_mode
+  access_mode
   get_access_mode() const
   {
     return cu_access_mode(m_hwctx.get_mode());
@@ -598,31 +600,31 @@ public:
   close()
   {}
 
-  [[nodiscard]] size_t
+  size_t
   get_size() const
   {
     return m_size;
   }
 
-  [[nodiscard]] uint64_t
+  uint64_t
   get_address() const
   {
     return m_address;
   }
 
-  [[nodiscard]] xrt_core::cuidx_type
+  xrt_core::cuidx_type
   get_index() const
   {
     return m_idx;
   }
 
-  [[nodiscard]] unsigned int
+  unsigned int
   get_cuidx() const
   {
     return m_idx.domain_index; // index used for execution cumask
   }
 
-  [[nodiscard]] slot_id
+  slot_id
   get_slot() const
   {
     auto hwctx_hdl = static_cast<xrt_core::hwctx_handle*>(m_hwctx);
@@ -639,7 +641,7 @@ public:
   // Get default memory bank for argument at specified index The
   // default memory bank is the connection with the highest group
   // connectivity index
-  [[nodiscard]] int32_t
+  int32_t
   arg_memidx(size_t argidx) const
   {
     return m_args.get_arg_memidx(argidx);
@@ -1316,6 +1318,7 @@ private:
   size_t num_cumasks = 1;              // Required number of command cu masks
   control_type protocol = control_type::none; // Default opcode
   uint32_t uid;                        // Internal unique id for debug
+  uint32_t m_ctrl_code_index = 0;      // Index to identify which ctrl code to load in elf
   std::shared_ptr<xrt_core::usage_metrics::base_logger> m_usage_logger =
       xrt_core::usage_metrics::get_usage_metrics_logger();
 
@@ -1505,6 +1508,16 @@ private:
   }
 
   static uint32_t
+  get_ctrlcode_idx(const std::string& name)
+  {
+    // kernel name will be of format - <kernel_name>:<ctrl code index>
+    if (auto i = name.find(":"); i != std::string::npos)
+      return std::stoul(name.substr(i+1, name.size()-i-1));
+
+    return 0; // default case
+  }
+
+  static uint32_t
   create_uid()
   {
     static std::atomic<uint32_t> count {0};
@@ -1579,10 +1592,26 @@ public:
     m_usage_logger->log_kernel_info(device->core_device.get(), hwctx, name, args.size());
   }
 
-  // Delegating constructor with no module
   kernel_impl(std::shared_ptr<device_type> dev, xrt::hw_context ctx, const std::string& nm)
-    : kernel_impl{std::move(dev), std::move(ctx), {}, nm}
-  {}
+    : name(nm.substr(0, nm.find(":")))                                  // kernel name
+    , device(std::move(dev))                                            // share ownership
+    , hwctx(std::move(ctx))                                             // hw context
+    , hwqueue(hwctx)                                                    // hw queue
+    , m_module(xrt_core::hw_context_int::get_module(hwctx, nm.substr(0, nm.find(":"))))
+    , properties(xrt_core::module_int::get_kernel_info(m_module).props) // kernel info present in Elf
+    , uid(create_uid())
+    , m_ctrl_code_index(get_ctrlcode_idx(nm))                           // control code index
+  {
+    XRT_DEBUGF("kernel_impl::kernel_impl(%d)\n", uid);
+
+    // get kernel info from module and initialize kernel args
+    for (auto& arg : xrt_core::module_int::get_kernel_info(m_module).args)
+      args.emplace_back(arg);
+
+    // amend args with computed data based on kernel protocol
+    amend_args();
+    m_usage_logger->log_kernel_info(device->core_device.get(), hwctx, name, args.size());
+  }
 
   std::shared_ptr<kernel_impl>
   get_shared_ptr()
@@ -1644,6 +1673,12 @@ public:
   get_name() const
   {
     return name;
+  }
+
+  uint32_t
+  get_ctrl_code_index() const
+  {
+    return m_ctrl_code_index;
   }
 
   xrt::xclbin
@@ -1940,15 +1975,18 @@ class run_impl
     return count++;
   }
 
-  // This function copies the module into a hw_context.  The module
+  // This function copies the module into a hw_context. The module
   // will be associated with hwctx specific memory.
+  // If module has multiple control codes, index is used to identify
+  // the control code that needs to be run.
+  // By default control code at zeroth index is picked
   static xrt::module
-  copy_module(const xrt::module& module, const xrt::hw_context& hwctx)
+  copy_module(const xrt::module& module, const xrt::hw_context& hwctx, uint32_t ctrl_code_idx)
   {
     if (!module)
       return {};
 
-    return {module, hwctx};
+    return {module, hwctx, ctrl_code_idx};
   }
 
   virtual std::unique_ptr<arg_setter>
@@ -2011,6 +2049,10 @@ class run_impl
   xrt::bo
   validate_bo_at_index(size_t index, const xrt::bo& bo)
   {
+    // ELF flow doesn't have arg connectivity, so skip validation
+    if (!kernel->get_xclbin())
+      return bo;
+
     xcl_bo_flags grp {xrt_core::bo::group_id(bo)};
     if (validate_ip_arg_connectivity(index, grp.bank))
       return bo;
@@ -2060,15 +2102,14 @@ class run_impl
   {
     auto kcmd = pkt->get_ert_cmd<ert_start_kernel_cmd*>();
     auto payload = kernel->initialize_command(pkt);
-
-    if (kcmd->opcode == ERT_START_DPU || kcmd->opcode == ERT_START_NPU || kcmd->opcode == ERT_START_NPU_PREEMPT) {
+    if (kcmd->opcode == ERT_START_DPU || kcmd->opcode == ERT_START_NPU || kcmd->opcode == ERT_START_NPU_PREEMPT ||
+        kcmd->opcode == ERT_START_NPU_PREEMPT_ELF) {
       auto payload_past_dpu = initialize_dpu(payload);
 
       // adjust count to include the prepended ert_dpu_data structures
       kcmd->count += payload_past_dpu - payload;
       payload = payload_past_dpu;
     }
-
     return payload;
   }
 
@@ -2125,7 +2166,7 @@ public:
   explicit
   run_impl(std::shared_ptr<kernel_impl> k)
     : kernel(std::move(k))
-    , m_module{copy_module(kernel->get_module(), kernel->get_hw_context())}
+    , m_module{copy_module(kernel->get_module(), kernel->get_hw_context(), kernel->get_ctrl_code_index())}
     , m_hwqueue(kernel->get_hw_queue())
     , ips(kernel->get_ips())
     , cumask(kernel->get_cumask())
@@ -2481,6 +2522,11 @@ public:
     static bool dump = xrt_core::config::get_feature_toggle("Debug.dump_scratchpad_mem");
     if (dump)
       xrt_core::module_int::dump_scratchpad_mem(m_module);
+    
+    // dump dtrace buffer if ini option is enabled
+    static auto dtrace_lib_path = xrt_core::config::get_dtrace_lib_path();
+    if (!dtrace_lib_path.empty())
+      xrt_core::module_int::dump_dtrace_buffer(m_module);
 
     return state;
   }
@@ -2504,6 +2550,12 @@ public:
     else {
       state = cmd->wait();
     }
+
+    // dump dtrace buffer if ini option is enabled
+    // here dtrace is dumped in both passing and timeout cases
+    static auto dtrace_lib_path = xrt_core::config::get_dtrace_lib_path();
+    if (!dtrace_lib_path.empty())
+      xrt_core::module_int::dump_dtrace_buffer(m_module);
 
     if (state == ERT_CMD_STATE_COMPLETED) {
       m_usage_logger->log_kernel_run_info(kernel.get(), this, state);
@@ -3434,7 +3486,7 @@ alloc_kernel(const std::shared_ptr<device_type>& dev,
 	     xrt::kernel::cu_access_mode mode)
 {
   auto amode = hwctx_access_mode(mode);  // legacy access mode to hwctx qos
-  return std::make_shared<xrt::kernel_impl>(dev, xrt::hw_context{dev->get_xrt_device(), xclbin_id, amode}, name);
+  return std::make_shared<xrt::kernel_impl>(dev, xrt::hw_context{dev->get_xrt_device(), xclbin_id, amode}, xrt::module{}, name);
 }
 
 static std::shared_ptr<xrt::kernel_impl>
@@ -3442,7 +3494,8 @@ alloc_kernel_from_ctx(const std::shared_ptr<device_type>& dev,
                       const xrt::hw_context& hwctx,
                       const std::string& name)
 {
-  return std::make_shared<xrt::kernel_impl>(dev, hwctx, name);
+  // Delegating constructor with no module
+  return std::make_shared<xrt::kernel_impl>(dev, hwctx, xrt::module{}, name);
 }
 
 static std::shared_ptr<xrt::kernel_impl>
@@ -3452,6 +3505,14 @@ alloc_kernel_from_module(const std::shared_ptr<device_type>& dev,
                          const std::string& name)
 {
   return std::make_shared<xrt::kernel_impl>(dev, hwctx, module, name);
+}
+
+static std::shared_ptr<xrt::kernel_impl>
+alloc_kernel_from_name(const std::shared_ptr<device_type>& dev,
+                       const xrt::hw_context& hwctx,
+                       const std::string& name)
+{
+  return std::make_shared<xrt::kernel_impl>(dev, hwctx, name);
 }
 
 static std::shared_ptr<xrt::mailbox_impl>
@@ -3474,7 +3535,10 @@ xrtKernelOpen(xrtDeviceHandle dhdl, const xuid_t xclbin_uuid, const char *name, 
 {
   auto device = get_device(dhdl);
   auto mode = hwctx_access_mode(am);  // legacy access mode to hwctx qos
-  auto kernel = std::make_shared<xrt::kernel_impl>(device, xrt::hw_context{device->get_xrt_device(), xclbin_uuid, mode}, name);
+  auto kernel = std::make_shared<xrt::kernel_impl>(device,
+                                                   xrt::hw_context{device->get_xrt_device(), xclbin_uuid, mode},
+                                                   xrt::module{},
+                                                   name);
   auto handle = kernel.get();
   kernels.add(handle, std::move(kernel));
   return handle;
@@ -3807,14 +3871,14 @@ add_callback(ert_cmd_state state,
 {
   XRT_DEBUGF("run::add_callback run(%d)\n", handle->get_uid());
   if (state != ERT_CMD_STATE_COMPLETED)
-    throw xrt_core::error(-EINVAL, "xrtRunSetCallback state may only be ERT_CMD_STATE_COMPLETED");
+    throw xrt_core::error(-EINVAL, "Cannot add callback, run state may only be ERT_CMD_STATE_COMPLETED");
   // The function callback is passed a key that uniquely identifies
   // run objects referring to the same implmentation.  This allows
   // upstream to associate key with some run object that represents
   // the key. Note that the callback cannot pass *this (xrt::run) as
   // these objects are transient.
   auto key = handle.get();
-  handle->add_callback([=](ert_cmd_state state) { fcn(key, state, data); });
+  handle->add_callback([fn = std::move(fcn), key, data](ert_cmd_state state) { fn(key, state, data); });
 }
 
 ert_packet*
@@ -3967,6 +4031,9 @@ void
 runlist::
 add(const xrt::run& run)
 {
+  if (!handle)
+    throw xrt_core::error("cannot add run object to uninitialized runlist");
+
   handle->add(run);
 }
 
@@ -4136,6 +4203,10 @@ kernel(const xrt::hw_context& ctx, const xrt::module& mod, const std::string& na
   : xrt::kernel::kernel{alloc_kernel_from_module(get_device(ctx.get_device()), ctx, mod, name)}
 {}
 
+kernel::
+kernel(const xrt::hw_context& ctx, const std::string& name)
+  : xrt::kernel::kernel{alloc_kernel_from_name(get_device(ctx.get_device()), ctx, name)}
+{}
 } // xrt::ext
 
 ////////////////////////////////////////////////////////////////

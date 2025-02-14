@@ -10,6 +10,7 @@ file(GLOB XBMGMT_V2_BASE_FILES
   "../common/XBUtilities.cpp"
   "../common/JSONConfigurable.cpp"
   "../common/SubCmd.cpp"
+  "../common/SubCmdJsonObjects.cpp"
   "../common/SubCmdConfigureInternal.cpp"
   "../common/SubCmdExamineInternal.cpp"
   "../common/XBHelpMenusCore.cpp"
@@ -83,7 +84,8 @@ if (XRT_STATIC_BUILD)
     dl
   )
   set_target_properties(${XBMGMT2_NAME}_static PROPERTIES INSTALL_RPATH "")
-  install(TARGETS ${XBMGMT2_NAME}_static RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR})
+  install(TARGETS ${XBMGMT2_NAME}_static
+    RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR} COMPOMENT ${XRT_BASE_COMPONENT})
 endif()
 
 target_link_libraries(${XBMGMT2_NAME}
@@ -102,6 +104,8 @@ else()
 endif()
 
 if (${XRT_NATIVE_BUILD} STREQUAL "yes")
-  install (TARGETS ${XBMGMT2_NAME} RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR})
-  install (PROGRAMS ${XRT_LOADER_SCRIPTS} DESTINATION ${XRT_INSTALL_BIN_DIR})
+  install (TARGETS ${XBMGMT2_NAME}
+    RUNTIME DESTINATION ${XRT_INSTALL_UNWRAPPED_DIR} COMPONENT ${XRT_BASE_COMPONENT})
+  install (PROGRAMS ${XRT_LOADER_SCRIPTS}
+    DESTINATION ${XRT_INSTALL_BIN_DIR} COMPONENT ${XRT_BASE_COMPONENT})
 endif()

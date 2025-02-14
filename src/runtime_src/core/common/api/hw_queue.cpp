@@ -13,11 +13,11 @@
 #include "core/common/debug.h"
 #include "core/common/device.h"
 #include "core/common/thread.h"
-#include "core/include/ert.h"
+#include "core/include/xrt/detail/ert.h"
 #include "core/include/xrt_hwqueue.h"
 
 #include "xrt/xrt_hw_context.h"
-#include "experimental/xrt_fence.h"
+#include "xrt/experimental/xrt_fence.h"
 
 #include <algorithm>
 #include <atomic>
@@ -412,7 +412,7 @@ public:
 
   // Managed start uses command manager for monitoring command
   // completion
-  void
+  virtual void
   managed_start(xrt_core::command* cmd)
   {
     get_cmd_manager()->launch(cmd);
@@ -439,6 +439,16 @@ public:
     : m_hwctx(std::move(hwctx))
     , m_qhdl(qhdl)
   {}
+
+  // Managed start is invoked when application has added a callback
+  // function for notification of command completion. This is not
+  // supported for platforms that implement hwqueue_handle (see
+  // details in wait(size_t) comments.
+  void
+  managed_start(xrt_core::command*) override
+  {
+    throw std::runtime_error("Managed execution is not supported for this device");
+  }
 
   std::cv_status
   wait(size_t /*timeout_ms*/) override

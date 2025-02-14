@@ -54,8 +54,7 @@ aie_array(const std::shared_ptr<xrt_core::device>& device)
 
   /* TODO get partition id and uid from XCLBIN or PDI */
   auto partition_id = xrt_core::edge::aie::full_array_id;
-  auto uid = 0;
-  drm_zocl_aie_fd aiefd = { 0 , partition_id, uid, 0 };
+  drm_zocl_aie_fd aiefd = { 0 , partition_id, 0 , 0 };
   int ret = drv->getPartitionFd(aiefd);
   if (ret)
     throw xrt_core::error(ret, "Create AIE failed. Can not get AIE fd");
@@ -119,9 +118,8 @@ aie_array(const std::shared_ptr<xrt_core::device>& device, const zynqaie::hwctx_
   auto drv = ZYNQ::shim::handleCheck(device->get_device_handle());
 
   auto partition_id = part_info.partition_id;
-  auto uid = 0;
   auto hw_context_id = hwctx_obj->get_slotidx();
-  drm_zocl_aie_fd aiefd = { hw_context_id , partition_id, uid, 0 };
+  drm_zocl_aie_fd aiefd = { hw_context_id , partition_id, 0 , 0 };
 
   //TODO: getparitionFd from driver instead of from shim
   if (auto ret = drv->getPartitionFd(aiefd))
@@ -233,11 +231,11 @@ sync_external_buffer(std::vector<xrt::bo>& bos, adf::external_buffer_config& con
     int start_bd = -1;
     for (const auto& shim_bd_info : port_config.shim_bd_infos) {
       auto buf_idx = shim_bd_info.buf_idx;
-      dma_api_obj.updateBDAddressLin(&bds[buf_idx].mem_inst, port_config.shim_column, 0, static_cast<uint8_t>(shim_bd_info.bd_id), shim_bd_info.offset * 4);
+      dma_api_obj.updateBDAddressLin(&bds[buf_idx].mem_inst, port_config.shim_column, 0, static_cast<uint16_t>(shim_bd_info.bd_id), shim_bd_info.offset * 4);
       if (start_bd < 0)
         start_bd = shim_bd_info.bd_id;
     }
-    dma_api_obj.enqueueTask(1, port_config.shim_column, 0, port_config.direction, port_config.channel_number, port_config.task_repetition, port_config.enable_task_complete_token, static_cast<uint8_t>(start_bd));
+    dma_api_obj.enqueueTask(1, port_config.shim_column, 0, port_config.direction, port_config.channel_number, port_config.task_repetition, port_config.enable_task_complete_token, static_cast<uint16_t>(start_bd));
   }
 
   for (auto& bd :bds) {

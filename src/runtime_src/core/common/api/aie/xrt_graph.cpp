@@ -12,9 +12,9 @@
 #include "core/include/xrt/xrt_graph.h"
 #include "core/include/xrt/xrt_aie.h"
 #include "core/include/xrt/xrt_bo.h"
+#include "core/include/xrt/xrt_device.h"
 #include "core/include/xcl_graph.h"
 
-#include "core/include/experimental/xrt_device.h"
 #include "core/common/api/device_int.h"
 #include "core/common/api/native_profile.h"
 #include "core/common/device.h"
@@ -964,7 +964,7 @@ xrtAIEStartProfiling(xrtDeviceHandle handle, int option, const char *port1Name, 
     const std::string port2 = port2Name ? port2Name : "";
     auto hdl = event->start(option, port1, port2, value);
     if (hdl != xrt::aie::profiling_impl::invalid_handle) {
-      profiling_cache[hdl] = event;
+      profiling_cache[hdl] = std::move(event);
       return hdl;
     }
     else

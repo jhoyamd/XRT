@@ -167,3 +167,7 @@ SubCmd::checkForSubOption(const boost::program_options::variables_map& vm, const
   return option;
 }
 
+void 
+SubCmd::setOptionConfig(const boost::property_tree::ptree &/*config*/) {
+  /*Stub. Should be implemented by derived classes on per need basis*/
+}

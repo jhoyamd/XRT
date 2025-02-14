@@ -5,6 +5,7 @@
 // ------ I N C L U D E   F I L E S -------------------------------------------
 // Local - Include Files
 #include "core/common/system.h"
+#include "core/common/smi.h"
 #include "SubCmd.h"
 #include "XBHelpMenusCore.h"
 #include "XBUtilitiesCore.h"
@@ -16,6 +17,7 @@ namespace XBU = XBUtilities;
 // 3rd Party Library - Include Files
 #include <boost/format.hpp>
 #include <boost/program_options.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 namespace po = boost::program_options;
 
@@ -128,7 +130,14 @@ void  main_(int argc, char** argv,
   // If there is a device value, parse for valid subcommands for this device.
   SubCmdsCollection devSubCmds;
   if (!sDevice.empty()) {
-    const std::string deviceClass = XBU::get_device_class(sDevice, isUserDomain);
+    std::string deviceClass;
+    try {
+      deviceClass = XBU::get_device_class(sDevice, isUserDomain); //can throw
+    } catch (const std::runtime_error& e) {
+      // Catch only the exceptions that we have generated earlier
+      std::cerr << boost::format("ERROR: %s\n") % e.what();
+      throw xrt_core::error(std::errc::operation_canceled);
+    }
     const auto& configs = JSONConfigurable::parse_configuration_tree(configurations);
     for (auto & subCmdEntry : _subCmds) {
       auto it = configs.find(subCmdEntry->getName());
@@ -173,9 +182,37 @@ void  main_(int argc, char** argv,
 
   subCommand->setGlobalOptions(globalSubCmdOptions);
 
+  /* xrt-smi. Tool should query device upfront and get the configurations
+   * from shim. This moves the resposibility for option setting to each shim
+   * instead of xrt-smi. 
+   * If the device is not found, then load the default xrt-smi config.
+  */
+  boost::property_tree::ptree configTreeMain;
+  std::string config;
+
+  boost::property_tree::ptree available_devices = XBU::get_available_devices(isUserDomain);
+
+  if (available_devices.empty()) //no device
+    config = xrt_core::smi::get_smi_config();
+  else if (available_devices.size() == 1 || !sDevice.empty()) { //1 device
+    auto device = XBU::get_device(boost::algorithm::to_lower_copy(sDevice), isUserDomain);
+    config = xrt_core::device_query<xrt_core::query::xrt_smi_config>(device, xrt_core::query::xrt_smi_config::type::options_config);
+  }
+  else { //multiple devices
+    std::string dev;
+    for (auto& kd : available_devices) {
+      boost::property_tree::ptree& devpt = kd.second;
+      dev = devpt.get<std::string>("bdf");
+    }
+    std::cout <<  (boost::format("NOTE: Multiple devices found. Showing help for %s device\n\n") % dev).str();
+    auto device = XBU::get_device(boost::algorithm::to_lower_copy(dev), isUserDomain);
+    config = xrt_core::device_query<xrt_core::query::xrt_smi_config>(device, xrt_core::query::xrt_smi_config::type::options_config);
+  }
+
+  std::istringstream command_config_stream(config);
+  boost::property_tree::read_json(command_config_stream, configTreeMain);
+  subCommand->setOptionConfig(configTreeMain);
+
   // -- Execute the sub-command
   subCommand->execute(subcmd_options);
 }
-
-
-

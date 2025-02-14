@@ -13,11 +13,11 @@
 #include "xclbin_parser.h"
 #include "xclbin_swemu.h"
 
-#include "core/include/ert.h"
-#include "core/include/xrt.h"
-#include "core/include/xclbin.h"
+#include "core/include/xrt/detail/ert.h"
+#include "core/include/xrt/detail/xclbin.h"
+#include "core/include/xrt/deprecated/xrt.h"
 #include "core/include/xrt/xrt_uuid.h"
-#include "core/include/experimental/xrt_xclbin.h"
+#include "core/include/xrt/experimental/xrt_xclbin.h"
 
 #include "core/common/api/hw_queue.h"
 #include "core/common/api/xclbin_int.h"
@@ -67,6 +67,25 @@ is_nodma() const
   }
 
   return *m_nodma;
+}
+
+bool
+device::
+get_ex_error_support() const
+{
+  std::lock_guard lk(m_mutex);
+  if (m_ex_error_support != std::nullopt)
+    return *m_ex_error_support;
+
+  try {
+    auto ex_error_support = xrt_core::device_query<xrt_core::query::xocl_errors_ex>(this);
+    m_ex_error_support = xrt_core::query::xocl_errors_ex::to_bool(ex_error_support);
+  }
+  catch (const std::exception&) {
+    m_ex_error_support = false;
+  }
+
+  return *m_ex_error_support;
 }
 
 uuid
@@ -241,10 +260,9 @@ update_cu_info()
     // It assumes that m_xclbin is the single xclbin and that
     // there is only one default slot with number 0.
     auto ip_layout = get_axlf_section<const ::ip_layout*>(IP_LAYOUT);
-    auto& cu2idx = m_cu2idx[0u]; // default slot 0
     if (ip_layout != nullptr) {
       m_cus = xclbin::get_cus(ip_layout);
-      cu2idx = xclbin::get_cu_indices(ip_layout);
+      m_cu2idx[0u] = xclbin::get_cu_indices(ip_layout); // default slot 0
     }
   }
 }

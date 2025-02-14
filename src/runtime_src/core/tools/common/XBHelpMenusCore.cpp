@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2020-2022 Xilinx, Inc
-// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 // ------ I N C L U D E   F I L E S -------------------------------------------
 // Local - Include Files
 #include "XBHelpMenusCore.h"
@@ -303,7 +303,7 @@ XBUtilities::report_commands_help( const std::string &_executable,
   boost::program_options::positional_options_description emptyPOD;
   std::string usage = XBU::create_usage_string(_optionDescription, emptyPOD);
   usage += " [command [commandArgs]]";
-  boost::format fmtUsage(fgc_header + "\nUSAGE: " + fgc_usageBody + "%s%s\n" + fgc_reset);
+  boost::format fmtUsage(fgc_header + "\nUSAGE: " + fgc_usageBody + "%s %s\n" + fgc_reset);
   std::cout << fmtUsage % _executable % usage;
 
   // -- Sort the SubCommands
@@ -549,7 +549,7 @@ display_subcommand_options(const std::string& executable,
   if (usageSuboption.empty())
     std::cout << boost::format(fh.fgc_header + "\nUSAGE: " + fh.fgc_usageBody + "%s %s %s\n" + fh.fgc_reset) % executable % subcommand % usage;
   else
-    std::cout << boost::format(fh.fgc_header + "\nUSAGE: " + fh.fgc_usageBody + "%s %s [ %s ] %s\n" + fh.fgc_reset) % executable % subcommand % usageSuboption % usage;
+    std::cout << boost::format(fh.fgc_header + "\nUSAGE: " + fh.fgc_usageBody + "%s %s %s %s\n" + fh.fgc_reset) % executable % subcommand % usageSuboption % usage;
 
   std::map<std::string, std::vector<std::shared_ptr<JSONConfigurable>>> commonJsonOptions;
   if (commandConfig.empty())

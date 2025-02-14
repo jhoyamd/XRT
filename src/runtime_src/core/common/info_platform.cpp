@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2021-2022 Xilinx, Inc
-// Copyright (C) 2023-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023-2025 Advanced Micro Devices, Inc. All rights reserved.
 #define XRT_CORE_COMMON_SOURCE
 #include "info_platform.h"
 #include "query_requests.h"
 #include "sensor.h"
 #include "utils.h"
-#include "xclbin.h"
+#include "xrt/detail/xclbin.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -61,6 +61,8 @@ add_static_region_info(const xrt_core::device* device, ptree_type& pt)
   case xrt_core::query::device_class::type::ryzen:
   {
     static_region.add("name", xrt_core::device_query<xq::rom_vbnv>(device));
+    const auto total_cols = xrt_core::device_query_default<xq::total_cols>(device, 0);
+    static_region.add("total_columns", total_cols);
     break;
   }
   }
@@ -352,7 +354,7 @@ add_mac_info(const xrt_core::device* device, ptree_type& pt)
     auto mac_addr_first = xrt_core::device_query<xq::mac_addr_first>(device);
 
     // new flow
-    if (mac_contiguous_num!=0 && !mac_addr_first.empty()) {
+    if (mac_contiguous_num != 0 && !mac_addr_first.empty()) {
       // Convert the mac address into a number
       uint64_t mac_addr_first_value = xrt_core::utils::mac_addr_to_value(mac_addr_first);
 

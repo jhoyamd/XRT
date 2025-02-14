@@ -9,6 +9,7 @@
 #include "SubCmdProgram.h"
 #include "SubCmdReset.h"
 #include "SubCmdValidate.h"
+#include "tools/common/tests/TestValidateUtilities.h"
 
 // Supporting tools
 #include "common/error.h"
@@ -17,6 +18,7 @@
 #include "tools/common/XBMain.h"
 #include "tools/common/XBUtilities.h"
 #include "tools/common/JSONConfigurable.h"
+#include "core/common/module_loader.h"
 
 // System include files
 #include <exception>
@@ -44,7 +46,7 @@ R"(
     }]
   },{
     "validate": [{
-      "test": ["aux-connection", "pcie-link", "sc-version", "verify", "dma", "iops", "mem-bw", "p2p", "m2m", "hostmem-bw", "bist", "vcu", "aie", "ps-aie", "ps-pl-verify", "ps-verify", "ps-iops"]
+      "test": ["aux-connection", "pcie-link", "sc-version", "verify", "dma", "mem-bw", "p2p", "m2m", "hostmem-bw", "aie", "ps-aie", "ps-pl-verify", "ps-verify", "ps-iops"]
     }]
   },{
     "reset": [{}]

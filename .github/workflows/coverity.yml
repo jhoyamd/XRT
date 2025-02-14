@@ -10,11 +10,11 @@ jobs:
     if: github.repository == 'Xilinx/XRT'
     steps:
     - name: Checkout XRT
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Store sha
       run: echo ${{ github.sha }} > sha
     - name: Compare sha
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache-sha
       with:
         path: sha
@@ -54,7 +54,7 @@ jobs:
         SHA: ${{ github.sha }}
     - name: Upload Coverity imed
       if: steps.cache-sha.outputs.cache-hit != 'true'
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: cov-int-file
         path: xrt.tgz

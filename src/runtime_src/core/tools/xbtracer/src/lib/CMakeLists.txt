@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
 link_directories($ENV{XILINX_XRT}/lib)
 
 add_library(xrt_capture SHARED
@@ -18,14 +20,9 @@ else()
   target_link_libraries(xrt_capture PRIVATE xrt_coreutil uuid dl pthread)
 endif()
 
+# xrt_capture is a plug-in runtime loaded library
+# it does not have a library or namelink component
 install(TARGETS xrt_capture
-  EXPORT xrt-targets
-  LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} ${XRT_NAMELINK_SKIP}
-  RUNTIME DESTINATION ${XRT_INSTALL_BIN_DIR}
-)
-
-install(TARGETS xrt_capture
-  EXPORT xrt-dev-targets
-  ARCHIVE DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_DEV_COMPONENT}
-  LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_DEV_COMPONENT} ${XRT_NAMELINK_ONLY}
+  RUNTIME DESTINATION ${XRT_INSTALL_BIN_DIR} COMPONENT ${XRT_BASE_COMPONENT}
+  LIBRARY DESTINATION ${XRT_INSTALL_LIB_DIR} COMPONENT ${XRT_BASE_COMPONENT}
 )

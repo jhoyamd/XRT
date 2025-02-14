@@ -769,32 +769,31 @@ get_device_offline_timer()
   return value;
 }
 
-// Configurations under AIE_debug_settings section
 inline std::string
 get_aie_debug_settings_core_registers()
 {
-  static std::string value = detail::get_string_value("AIE_debug_settings.core_registers", "");
+  static std::string value = detail::get_string_value("AIE_debug_settings.core_registers", "all");
   return value;
 }
 
 inline std::string
 get_aie_debug_settings_memory_registers()
 {
-  static std::string value = detail::get_string_value("AIE_debug_settings.memory_registers", "");
+  static std::string value = detail::get_string_value("AIE_debug_settings.memory_registers", "all");
   return value;
 }
 
 inline std::string
 get_aie_debug_settings_interface_registers()
 {
-  static std::string value = detail::get_string_value("AIE_debug_settings.interface_registers", "");
+  static std::string value = detail::get_string_value("AIE_debug_settings.interface_registers", "all");
   return value;
 }
 
 inline std::string
 get_aie_debug_settings_memory_tile_registers()
 {
-  static std::string value = detail::get_string_value("AIE_debug_settings.memory_tile_registers", "");
+  static std::string value = detail::get_string_value("AIE_debug_settings.memory_tile_registers", "all");
   return value;
 }
 
@@ -866,6 +865,13 @@ inline std::string
 get_aie_profile_settings_interface_tile_latency_metrics()
 {
   static std::string value = detail::get_string_value("AIE_profile_settings.interface_tile_latency", "");
+  return value;
+}
+
+inline std::string
+get_aie_profile_settings_tile_based_microcontroller_metrics()
+{
+  static std::string value = detail::get_string_value("AIE_profile_settings.tile_based_microcontroller_metrics", "");
   return value;
 }
 
@@ -1022,6 +1028,20 @@ inline bool
 get_aie_trace_settings_enable_system_timeline()
 {
   static bool value = detail::get_bool_value("AIE_trace_settings.enable_system_timeline", false);
+  return value;
+}
+
+inline std::string
+get_dtrace_lib_path()
+{
+  static std::string value = detail::get_string_value("Debug.dtrace_lib_path", "");
+  return value;
+}
+
+inline std::string
+get_dtrace_control_file_path()
+{
+  static std::string value = detail::get_string_value("Debug.dtrace_control_file_path", "");
   return value;
 }
 

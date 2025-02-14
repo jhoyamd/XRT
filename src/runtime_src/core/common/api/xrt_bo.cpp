@@ -10,7 +10,8 @@
 #include "core/include/xrt/xrt_bo.h"
 #include "core/include/xrt/xrt_aie.h"
 #include "core/include/xrt/xrt_hw_context.h"
-#include "core/include/experimental/xrt_ext.h"
+#include "core/include/xrt/detail/xrt_mem.h"
+#include "core/include/xrt/experimental/xrt_ext.h"
 
 #include "native_profile.h"
 #include "bo.h"
@@ -19,7 +20,6 @@
 #include "handle.h"
 #include "hw_context_int.h"
 #include "kernel_int.h"
-#include "xrt_mem.h"
 #include "core/common/api/bo_int.h"
 #include "core/common/device.h"
 #include "core/common/memalign.h"
@@ -263,7 +263,7 @@ public:
   }
 
   // Managed imported handle
-  bo_impl(device_type dev, xrt_core::shared_handle::export_handle ehdl)
+  bo_impl(const device_type& dev, xrt_core::shared_handle::export_handle ehdl)
     : bo_impl(dev, pid_type{0}, ehdl)
   {}
 
@@ -324,6 +324,15 @@ public:
     return device.get_hwctx_handle();
   }
 
+  void*
+  get_hbuf_or_error() const
+  {
+    if (auto hbuf = get_hbuf())
+      return hbuf;
+
+    throw xrt_core::error("buffer is not mapped");
+  }
+
   export_handle
   export_buffer() const
   {
@@ -338,7 +347,7 @@ public:
   {
     if (sz + seek > size)
       throw xrt_core::error(-EINVAL,"attempting to write past buffer size");
-    auto hbuf = static_cast<char*>(get_hbuf()) + seek;
+    auto hbuf = static_cast<char*>(get_hbuf_or_error()) + seek;
     std::memcpy(hbuf, src, sz);
   }
 
@@ -347,7 +356,7 @@ public:
   {
     if (sz + skip > size)
       throw xrt_core::error(-EINVAL,"attempting to read past buffer size");
-    auto hbuf = static_cast<char*>(get_hbuf()) + skip;
+    auto hbuf = static_cast<char*>(get_hbuf_or_error()) + skip;
     std::memcpy(dst, hbuf, sz);
   }
 
@@ -1454,7 +1463,7 @@ bo::
 size() const
 {
   return xdp::native::profiling_wrapper("xrt::bo::size", [this]{
-    return handle->get_size();
+    return handle ? handle->get_size() : 0;
   }) ;
 }
 
@@ -1680,19 +1689,32 @@ get_offset(const xrt::bo& bo)
   return handle->get_offset();
 }
 
-xrt::bo
-create_debug_bo(const xrt::hw_context& hwctx, size_t sz)
+static xrt::bo
+create_bo_helper(const xrt::hw_context& hwctx, size_t sz, uint32_t use_flag)
 {
   xcl_bo_flags flags {0};  // see xrt_mem.h
   flags.flags = XRT_BO_FLAGS_CACHEABLE;
   flags.access = XRT_BO_ACCESS_LOCAL;
   flags.dir = XRT_BO_ACCESS_READ_WRITE;
-  flags.use = XRT_BO_USE_DEBUG;
+  flags.use = use_flag;
 
-  // While the memory group should be ignored (inferred) for debug
-  // buffers, it is still passed in as a default group 1 with no
-  // implied correlation to xclbin connectivity or memory group.
+  // While the memory group should be ignored (inferred) for
+  // debug / trace buffers, it is still passed in as a default
+  // group 1 with no implied correlation to xclbin connectivity
+  // or memory group.
   return xrt::bo{alloc(device_type{hwctx}, sz, flags.all, 1)};
+}
+
+xrt::bo
+create_debug_bo(const xrt::hw_context& hwctx, size_t sz)
+{
+  return create_bo_helper(hwctx, sz, XRT_BO_USE_DEBUG);
+}
+
+xrt::bo
+create_dtrace_bo(const xrt::hw_context& hwctx, size_t sz)
+{
+  return create_bo_helper(hwctx, sz, XRT_BO_USE_DTRACE);
 }
 
 } // xrt_core::bo_int

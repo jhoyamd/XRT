@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2019-2022 Xilinx, Inc
-// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 
 // ------ I N C L U D E   F I L E S -------------------------------------------
 #include "XBUtilities.h"
@@ -13,6 +13,7 @@
 #include "common/message.h"
 #include "common/system.h"
 #include "common/sysinfo.h"
+#include "common/smi.h"
 
 // 3rd Party Library - Include Files
 #include <boost/algorithm/string/split.hpp>
@@ -213,20 +214,24 @@ bdf2index(const std::string& bdfstr, bool _inUserDomain)
 
   std::reverse(std::begin(tokens), std::end(tokens));
 
-  //check if func was specified. func is optional
-  auto pos_of_func = tokens[0].find('.');
-  if (pos_of_func != std::string::npos) {
-    dev = static_cast<uint16_t>(std::stoi(std::string(tokens[0].substr(0, pos_of_func)), nullptr, radix));
-    func = static_cast<uint16_t>(std::stoi(std::string(tokens[0].substr(pos_of_func+1)), nullptr, radix));
+try {
+    //check if func was specified. func is optional
+    auto pos_of_func = tokens[0].find('.');
+    if (pos_of_func != std::string::npos) {
+      dev = static_cast<uint16_t>(std::stoi(std::string(tokens[0].substr(0, pos_of_func)), nullptr, radix));
+      func = static_cast<uint16_t>(std::stoi(std::string(tokens[0].substr(pos_of_func+1)), nullptr, radix));
+    }
+    else
+      dev = static_cast<uint16_t>(std::stoi(std::string(tokens[0]), nullptr, radix));
+
+    bus = static_cast<uint16_t>(std::stoi(std::string(tokens[1]), nullptr, radix));
+
+    // domain is not mandatory if it is "0000"
+    if(tokens.size() > 2)
+      domain = static_cast<uint16_t>(std::stoi(std::string(tokens[2]), nullptr, radix));
+  } catch (const std::invalid_argument&) {
+    throw std::runtime_error(boost::str(boost::format("Invalid BDF '%s'") % bdfstr) + XBUtilities::str_available_devs(_inUserDomain));
   }
-  else
-    dev = static_cast<uint16_t>(std::stoi(std::string(tokens[0]), nullptr, radix));
-
-  bus = static_cast<uint16_t>(std::stoi(std::string(tokens[1]), nullptr, radix));
-
-  // domain is not mandatory if it is "0000"
-  if(tokens.size() > 2)
-    domain = static_cast<uint16_t>(std::stoi(std::string(tokens[2]), nullptr, radix));
 
   // Iterate through the available devices to find a BDF match
   // This must not open any devices! Doing do would slow down the software
@@ -494,7 +499,7 @@ XBUtilities::print_exception(const std::system_error& e)
     // Remove the type of error from the message.
     const std::string msg = std::regex_replace(e.what(), std::regex(std::string(": ") + e.code().message()), "");
 
-    if (!msg.empty())
+    if ((!msg.empty()) && (!boost::icontains(msg, "operation canceled")))
       std::cerr << boost::format("ERROR: %s\n") % msg;
   }
   catch (const std::exception&)
@@ -759,8 +764,6 @@ fill_xrt_versions(const boost::property_tree::ptree& pt_xrt,
       std::string drv_version = boost::iequals(drv_name, "N/A") ? drv_name : drv_name.append(" Version");
       output << boost::format("  %-20s : %s\n") % drv_version % driver.get<std::string>("version", "N/A");
     }
-    if (boost::iequals(drv_name, "xclmgmt") && boost::iequals(driver.get<std::string>("version", "N/A"), "unknown"))
-      output << "WARNING: xclmgmt version is unknown. Is xclmgmt driver loaded? Or is MSD/MPD running?" << std::endl;
   }
 
   try {
@@ -775,4 +778,4 @@ fill_xrt_versions(const boost::property_tree::ptree& pt_xrt,
   catch (...) {
     //no device available
   }
-}
+}// end of namespace XBValidateUtils

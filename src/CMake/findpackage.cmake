@@ -37,25 +37,17 @@ write_basic_package_version_file (
 install (
   FILES ${CMAKE_CURRENT_BINARY_DIR}/${LOWER_NAME}-config.cmake ${CMAKE_CURRENT_BINARY_DIR}/${LOWER_NAME}-config-version.cmake
   DESTINATION ${XRT_INSTALL_DIR}/share/cmake/${PROJECT_NAME}
-  COMPONENT ${XRT_DEV_COMPONENT}
+  COMPONENT ${XRT_BASE_DEV_COMPONENT}
   )
 
-# Generate and install xrt-targets.cmake
-# This will generate a file that details all targets we have marked for export
-# as part of the xrt-targets export group
-# It will provide information such as the library file names and locations post install
-if (NOT WIN32)
+# Generate and install xrt-targets.cmake. This will generate a file
+# that details all targets we have marked for export as part of the
+# xrt-targets export group. It will provide information such as the
+# library file names and locations post install
 install(
   EXPORT xrt-targets
   NAMESPACE ${PROJECT_NAME}::
   DESTINATION ${XRT_INSTALL_DIR}/share/cmake/${PROJECT_NAME}
+  COMPONENT ${XRT_BASE_DEV_COMPONENT}
   )
-endif()
 
-if (${XRT_NATIVE_BUILD} STREQUAL "yes")
-install(
-  EXPORT xrt-dev-targets
-  NAMESPACE ${PROJECT_NAME}::
-  DESTINATION ${XRT_INSTALL_DIR}/share/cmake/${PROJECT_NAME}
-  )
-endif()
