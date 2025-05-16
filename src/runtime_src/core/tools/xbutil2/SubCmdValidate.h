@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2019-2020 Xilinx, Inc
-// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023-2025 Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef __SubCmdValidate_h_
 #define __SubCmdValidate_h_
@@ -21,6 +21,7 @@ struct SubCmdValidateOptions {
   std::string m_xclbin_path;
   std::string m_pmode;
   std::vector<std::string> m_tests_to_run;
+  bool m_elf;
   bool m_help;
 };
 
@@ -30,17 +31,16 @@ class SubCmdValidate : public SubCmd {
   virtual void setOptionConfig(const boost::property_tree::ptree &config) override;
 
  public:
-  SubCmdValidate(bool _isHidden, bool _isDepricated, bool _isPreliminary, const boost::property_tree::ptree& configurations);
+  SubCmdValidate(bool _isHidden, bool _isDepricated, bool _isPreliminary);
 
  private:
 
   void fill_option_values(const boost::program_options::variables_map& vm, SubCmdValidateOptions& options) const;
-  void print_help_internal(const SubCmdValidateOptions& ) const;
   void handle_errors_and_validate_tests(const boost::program_options::variables_map&, 
                                         const SubCmdValidateOptions&,
+                                        std::vector<std::shared_ptr<TestRunner>>&,
                                         std::vector<std::string>&,
                                         std::vector<std::string>&) const;
-  XBUtilities::VectorPairStrings getTestNameDescriptions(const SubCmdValidateOptions&, const bool addAdditionOptions) const;
   std::vector<std::shared_ptr<TestRunner>> getTestList(const xrt_core::smi::tuple_vector&) const;
 };
 

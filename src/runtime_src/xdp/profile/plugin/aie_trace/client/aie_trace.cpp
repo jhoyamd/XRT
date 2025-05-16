@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -33,6 +33,7 @@
 #include "xdp/profile/device/tracedefs.h"
 #include "xdp/profile/plugin/aie_trace/aie_trace_metadata.h"
 #include "xdp/profile/plugin/aie_trace/util/aie_trace_util.h"
+#include "xdp/profile/plugin/vp_base/info.h"
 
 namespace xdp {
   using severity_level = xrt_core::message::severity_level;
@@ -98,7 +99,7 @@ namespace xdp {
 
   void AieTrace_WinImpl::build2ChannelBroadcastNetwork(void *hwCtxImpl, uint8_t broadcastId1, uint8_t broadcastId2, XAie_Events event) {
 
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(hwCtxImpl);
     // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
     uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
@@ -167,7 +168,7 @@ namespace xdp {
 
   void AieTrace_WinImpl::reset2ChannelBroadcastNetwork(void *hwCtxImpl, uint8_t broadcastId1, uint8_t broadcastId2) {
 
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(hwCtxImpl);
     // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
     uint8_t numCols  = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("num_cols"));
@@ -208,7 +209,7 @@ namespace xdp {
     //Start recording the transaction
     XAie_StartTransaction(&aieDevInst, XAIE_TRANSACTION_DISABLE_AUTO_FLUSH);
 
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(hwCtxImpl);
     // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
 
@@ -273,7 +274,7 @@ namespace xdp {
   {
     xrt_core::message::send(severity_level::info, "XRT", "Calling AIE Trace IPU updateDevice.");
 
-    // compile-time trace
+    // Make sure compiler trace option is available as runtime
     if (!metadata->getRuntimeMetrics())
       return;
 
@@ -344,6 +345,11 @@ namespace xdp {
 
   void AieTrace_WinImpl::flushTraceModules()
   {
+    if (db->infoAvailable(xdp::info::ml_timeline)) {
+      db->broadcast(VPDatabase::MessageType::READ_RECORD_TIMESTAMPS, nullptr);
+      xrt_core::message::send(severity_level::debug, "XRT", "Done reading recorded timestamps.");
+    }
+
     if (traceFlushLocs.empty() && memoryTileTraceFlushLocs.empty() 
         && interfaceTileTraceFlushLocs.empty())
       return;
@@ -926,7 +932,7 @@ namespace xdp {
     (void)deviceId;
 
     // Get partition columns
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(hwCtxImpl);
     // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
 
@@ -1188,6 +1194,15 @@ namespace xdp {
           XAie_EventLogicalToPhysicalConv(&aieDevInst, loc, XAIE_CORE_MOD, traceEndEvent, &phyEvent);
           cfgTile->core_trace_config.internal_events_broadcast[9] = phyEvent;
 
+          if(m_trace_start_broadcast)
+            traceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_MEM + traceStartBroadcastChId1);
+          else
+            traceStartEvent = XAIE_EVENT_BROADCAST_8_MEM;
+          traceEndEvent = XAIE_EVENT_BROADCAST_9_MEM;
+          firstBroadcastId = 10;
+        }
+
+        if (type == module_type::core) {
           // Only enable Core -> MEM. Block everything else in both modules
           if (XAie_EventBroadcastBlockMapDir(&aieDevInst, loc, XAIE_CORE_MOD, XAIE_EVENT_SWITCH_A, 0xFF00, XAIE_EVENT_BROADCAST_WEST | XAIE_EVENT_BROADCAST_NORTH | XAIE_EVENT_BROADCAST_SOUTH) != XAIE_OK)
             break;
@@ -1197,13 +1212,6 @@ namespace xdp {
           for (uint8_t i = 8; i < 16; i++)
             if (XAie_EventBroadcastUnblockDir(&aieDevInst, loc, XAIE_CORE_MOD, XAIE_EVENT_SWITCH_A, i, XAIE_EVENT_BROADCAST_EAST) != XAIE_OK)
               break;
-
-          if(m_trace_start_broadcast)
-            traceStartEvent = (XAie_Events) (XAIE_EVENT_BROADCAST_0_MEM + traceStartBroadcastChId1);
-          else
-            traceStartEvent = XAIE_EVENT_BROADCAST_8_MEM;
-          traceEndEvent = XAIE_EVENT_BROADCAST_9_MEM;
-          firstBroadcastId = 10;
         }
 
         // Configure event ports on stream switch

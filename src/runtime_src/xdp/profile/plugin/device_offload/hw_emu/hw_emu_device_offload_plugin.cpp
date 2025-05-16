@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2022 Xilinx, Inc
- * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -52,6 +52,15 @@ namespace xdp {
       readTrace() ;
       readCounters() ;
       XDPPlugin::endWrite() ;
+
+      // On Alveo hardware emulation (where there is only one device)
+      // we have to remove the device interface at this point
+      if (!isEdge()) {
+        for (auto deviceId : devicesSeen) {
+          db->getStaticInfo().removeDeviceIntf(deviceId);
+        }
+      }
+
       db->unregisterPlugin(this) ;
     }
 
@@ -114,7 +123,7 @@ namespace xdp {
 
     // Update the static database with all the information that
     //  will be needed later
-    db->getStaticInfo().updateDevice(deviceId, std::move(std::make_unique<HalDevice>(userHandle)), userHandle) ;
+    db->getStaticInfo().updateDeviceFromHandle(deviceId, std::move(std::make_unique<HalDevice>(userHandle)), userHandle) ;
 
     // For the HAL level, we must create a device interface using
     //  the xdp::HalDevice to communicate with the physical device

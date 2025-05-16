@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2021 Xilinx, Inc
- * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -37,7 +37,9 @@
 #include "core/include/experimental/xrt-next.h"
 
 #ifdef XDP_VE2_BUILD
-#include "shim/shim.h"
+#include "core/common/shim/hwctx_handle.h"
+#include "core/common/api/hw_context_int.h"
+#include "shim/xdna_hwctx.h"
 #else
 #include "core/edge/user/shim.h"
 #endif
@@ -46,10 +48,10 @@ namespace {
   static void* fetchAieDevInst(void* devHandle)
   {
 #ifdef XDP_VE2_BUILD
-    auto drv = aiarm::shim::handleCheck(devHandle);
-    if (!drv)
-      return nullptr;
-    auto aieArray = drv->get_aie_array();
+    xrt::hw_context context = xrt_core::hw_context_int::create_hw_context_from_implementation(devHandle);
+    auto hwctx_hdl = static_cast<xrt_core::hwctx_handle*>(context);
+    auto hwctx_obj = dynamic_cast<shim_xdna_edge::xdna_hwctx*>(hwctx_hdl);
+    auto aieArray = hwctx_obj->get_aie_array();
 #else
     auto drv = ZYNQ::shim::handleCheck(devHandle);
     if (!drv)
@@ -116,7 +118,7 @@ namespace xdp {
   /****************************************************************************
    * Gather list of tiles to check status
    ***************************************************************************/
-  void AIEStatusPlugin::getTilesForStatus()
+  void AIEStatusPlugin::getTilesForStatus(void* handle)
   {
     // Capture all tiles across all graphs
     // Note: in the future, we could support user-defined tile sets
@@ -221,7 +223,12 @@ namespace xdp {
       return;
 
     // AIE core register offsets
+#ifdef XDP_VE2_BUILD
+    constexpr uint64_t AIE_OFFSET_CORE_STATUS = 0x38004;
+#else
     constexpr uint64_t AIE_OFFSET_CORE_STATUS = 0x32004;
+#endif
+
     auto offset = metadataReader->getAIETileRowOffset();
     auto hwGen = metadataReader->getHardwareGeneration();
 
@@ -420,28 +427,46 @@ namespace xdp {
     while (shouldContinue) {
       if (!(db->getStaticInfo().isDeviceReady(index)))
         continue;
-
+      
+      mtxWriterThread.lock();
       aieWriter->write(false, handle);
+      mtxWriterThread.unlock();
       std::this_thread::sleep_for(std::chrono::microseconds(mPollingInterval));
     }
+  }
+
+  uint64_t AIEStatusPlugin::getDeviceIDFromHandle(void* handle, bool hw_context_flow)
+  {
+    if (hw_context_flow)
+      return db->addDevice("ve2_device");
+    else
+      // only xcl device handle
+      return db->addDevice(util::getDebugIpLayoutPath(handle)); // Get the unique device Id
   }
 
   /****************************************************************************
    * Update AIE device
    ***************************************************************************/
-  void AIEStatusPlugin::updateAIEDevice(void* handle)
+  void AIEStatusPlugin::updateAIEDevice(void* handle, bool hw_context_flow)
   {
+    xrt_core::message::send(severity_level::info, "XRT", "Calling AIE Status update AIE device.");
     // Don't update if no debug/status is requested
     if (!xrt_core::config::get_aie_status())
       return;
 
-    mXrtCoreDevice = xrt_core::get_userpf_device(handle);
+    if (!handle)
+      return;
 
-    uint64_t deviceID = db->addDevice(util::getDebugIpLayoutPath(handle)); // Get the unique device Id
+    auto mXrtCoreDevice = util::convertToCoreDevice(handle, hw_context_flow);
+    auto deviceID = getDeviceIDFromHandle(handle, hw_context_flow);
 
-    if (!(db->getStaticInfo()).isDeviceReady(deviceID)) {
-      // Update the static database with information from xclbin
-      (db->getStaticInfo()).updateDevice(deviceID, nullptr, handle);
+    // Update the static database with information from xclbin
+    {
+      #ifdef XDP_VE2_BUILD
+        (db->getStaticInfo()).updateDeviceFromCoreDevice(deviceID, mXrtCoreDevice);
+      #else
+        (db->getStaticInfo()).updateDeviceFromHandle(deviceID, nullptr, handle);
+      #endif
     }
 
     // Grab AIE metadata
@@ -451,10 +476,14 @@ namespace xdp {
     auto hwGen =  metadataReader->getHardwareGeneration();
 
     // Update list of tiles to debug
-    getTilesForStatus();
+    getTilesForStatus(handle);
 
     // Open the writer for this device
-    std::string devicename = util::getDeviceName(handle);
+    #ifdef XDP_VE2_BUILD
+      std::string devicename = util::getDeviceName(handle,true);
+    #else
+      std::string devicename = util::getDeviceName(handle);
+    #endif
 
     std::string currentTime = "0000_00_00_0000";
     auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -483,9 +512,12 @@ namespace xdp {
    ***************************************************************************/
   void AIEStatusPlugin::endPollforDevice(void* handle)
   {
-    // Last chance at writing status reports
-    for (auto w : writers)
-      w->write(false, handle);
+    // Last chance at writing status reports 
+    for (auto w : writers) {
+      mtxWriterThread.lock();
+      w->write(false, handle);      
+      mtxWriterThread.unlock();
+    }
 
     // When ending polling for a device, if we are on edge we must instead
     // shut down all of the threads and not just a single one in order

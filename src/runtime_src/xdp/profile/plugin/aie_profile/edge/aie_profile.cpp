@@ -160,8 +160,7 @@ namespace xdp {
           0 : static_cast<uint8_t>(tile.stream_ids.at(portnum));
       uint8_t idToReport = (tile.subtype == io_type::GMIO) ? channel : streamPortId;
       uint8_t isChannel  = (tile.subtype == io_type::GMIO) ? 1 : 0;
-      uint8_t isMaster   = (portnum >= tile.is_master_vec.size()) ?
-          0 : static_cast<uint8_t>(tile.is_master_vec.at(portnum));
+      uint8_t isMaster = aie::isInputSet(type, metricSet) ? 0 : 1;
 
       return ((isMaster << PAYLOAD_IS_MASTER_SHIFT)
              | (isChannel << PAYLOAD_IS_CHANNEL_SHIFT) | idToReport);
@@ -415,7 +414,7 @@ namespace xdp {
             XAie_Events retCounterEvent = XAIE_EVENT_NONE_CORE;
             perfCounter = aie::profile::configProfileAPICounters(aieDevInst, aieDevice, metadata, xaieModule, 
                             mod, type, metricSet, startEvent, endEvent, resetEvent, i, perfCounters.size(),
-                            threshold, retCounterEvent, tile, bcResourcesLatency, adfAPIResourceInfoMap);
+                            threshold, retCounterEvent, tile, bcResourcesLatency, adfAPIResourceInfoMap, adfAPIBroadcastEventsMap);
           }
           else {
             // Request counter from resource manager
@@ -456,7 +455,7 @@ namespace xdp {
           std::string counterName = "AIE Counter " + std::to_string(counterId);
           (db->getStaticInfo()).addAIECounter(deviceId, counterId, col, row, i,
                 phyStartEvent, phyEndEvent, resetEvent, payload, metadata->getClockFreqMhz(), 
-                metadata->getModuleName(module), counterName);
+                metadata->getModuleName(module), counterName, (tile.stream_ids.empty() ? 0 : tile.stream_ids[0]));
           counterId++;
           numCounters++;
         } // numFreeCtr
@@ -529,9 +528,9 @@ namespace xdp {
           uint32_t srcCounterValue = 0;
           uint32_t destCounterValue = 0;
           try {
-            std::string srcDestPairKey = metadata->getSrcDestPairKey(aie->column, aie->row);
-            uint8_t srcPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::INTF_TILE_LATENCY).at(srcDestPairKey).srcPcIdx;
-            uint8_t destPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::INTF_TILE_LATENCY).at(srcDestPairKey).destPcIdx;
+            std::string srcDestPairKey = metadata->getSrcDestPairKey(aie->column, aie->row, aie->streamId);
+            uint64_t srcPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::INTF_TILE_LATENCY).at(srcDestPairKey).srcPcIdx;
+            uint64_t destPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::INTF_TILE_LATENCY).at(srcDestPairKey).destPcIdx;
             auto srcPerfCount = perfCounters.at(srcPcIdx);
             auto destPerfCount = perfCounters.at(destPcIdx);
             srcPerfCount->readResult(srcCounterValue);
@@ -548,7 +547,7 @@ namespace xdp {
         {
           try {
             std::string srcKey = "(" + aie::uint8ToStr(aie->column) + "," + aie::uint8ToStr(aie->row) + ")";
-            uint8_t srcPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED).at(srcKey).srcPcIdx;
+            uint64_t srcPcIdx = adfAPIResourceInfoMap.at(aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED).at(srcKey).srcPcIdx;
             auto perfCounter = perfCounters.at(srcPcIdx);
             perfCounter->readResult(counterValue);
             uint64_t storedValue = adfAPIResourceInfoMap[aie::profile::adfAPI::START_TO_BYTES_TRANSFERRED][srcKey].profileResult;

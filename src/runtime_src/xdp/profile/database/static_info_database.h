@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2016-2021 Xilinx, Inc
- * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -28,6 +28,7 @@
 
 #include "core/common/system.h"
 #include "core/common/device.h"
+#include "xdp/profile/device/xdp_base_device.h"
 #include "xdp/profile/database/static_info/aie_util.h"
 #include "xdp/profile/database/static_info/aie_constructs.h"
 #include "xdp/profile/database/static_info/xclbin_types.h"
@@ -267,6 +268,7 @@ namespace xdp {
     XDP_CORE_EXPORT void setDeviceName(uint64_t deviceId, const std::string& name) ;
     XDP_CORE_EXPORT std::string getDeviceName(uint64_t deviceId) ;
     XDP_CORE_EXPORT PLDeviceIntf* getDeviceIntf(uint64_t deviceId) ;
+    XDP_CORE_EXPORT void removeDeviceIntf(uint64_t deviceId);
     XDP_CORE_EXPORT void createPLDeviceIntf(uint64_t deviceId, std::unique_ptr<xdp::Device> xdpDevice, XclbinInfoType xclbinType);
     XDP_CORE_EXPORT uint64_t getKDMACount(uint64_t deviceId) ;
     XDP_CORE_EXPORT void setHostMaxReadBW(uint64_t deviceId, double bw) ;
@@ -281,9 +283,20 @@ namespace xdp {
     XDP_CORE_EXPORT const std::vector<std::unique_ptr<ConfigInfo>>& getLoadedConfigs(uint64_t deviceId) ;
     XDP_CORE_EXPORT ComputeUnitInstance* getCU(uint64_t deviceId, int32_t cuId) ;
     XDP_CORE_EXPORT Memory* getMemory(uint64_t deviceId, int32_t memId) ;
-    // Reseting device information whenever a new xclbin is added
-    XDP_CORE_EXPORT void updateDevice(uint64_t deviceId, std::unique_ptr<xdp::Device> xdpDevice, void* devHandle) ;
-    XDP_CORE_EXPORT void updateDeviceClient(uint64_t deviceId, std::shared_ptr<xrt_core::device> device, bool readAIEMetadata = true);
+    // Each of the plugins update the information in this database
+    // whenever a new hardware configuration is loaded.  This information
+    // can come from either a call to loadXclbin using an xclDeviceHandle or
+    // from the construction of an xrt::hw_context.  These two functions
+    // are the entry points for both paths.
+    XDP_CORE_EXPORT
+    void updateDeviceFromHandle(uint64_t deviceId,
+                                std::unique_ptr<xdp::Device> xdpDevice,
+                                void* devHandle);
+    XDP_CORE_EXPORT
+    void updateDeviceFromCoreDevice(uint64_t deviceId,
+                                    std::shared_ptr<xrt_core::device> device,
+                                    bool readAIEMetadata = true,
+                                    std::unique_ptr<xdp::Device> xdpDevice = nullptr);
 
     // *********************************************************
     // ***** Functions related to trace_processor tool *****
@@ -331,7 +344,7 @@ namespace xdp {
                                   uint8_t row, uint8_t num, uint16_t start,
                                   uint16_t end, uint8_t reset, uint64_t load,
                                   double freq, const std::string& mod,
-                                  const std::string& aieName) ;
+                                  const std::string& aieName, uint8_t streamId=0) ;
     XDP_CORE_EXPORT void addAIECounterResources(uint64_t deviceId,
                                            uint32_t numCounters,
                                            uint32_t numTiles,
@@ -358,8 +371,7 @@ namespace xdp {
                                   std::function<void (void*)> deallocate,
                                   void* devHandle) ;
 
-    XDP_CORE_EXPORT void readAIEMetadataClient();
-    XDP_CORE_EXPORT void readAIEMetadata(xrt::xclbin xrtXclbin, bool clientBuild);
+    XDP_CORE_EXPORT void readAIEMetadata(xrt::xclbin xrtXclbin, bool checkDisk);
     XDP_CORE_EXPORT const aie::BaseFiletypeImpl* getAIEmetadataReader() const;
 
     // ************************************************************************

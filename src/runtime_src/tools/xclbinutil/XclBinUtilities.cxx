@@ -20,18 +20,10 @@
 #include "XclBinClass.h"
 
 #include <boost/algorithm/string/join.hpp>
-#include <boost/format.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/uuid/uuid.hpp>          // for uuid
 #include <boost/uuid/uuid_io.hpp>       // for to_string
 #include <boost/version.hpp>
-#include <filesystem>
-#include <fstream>
-#include <inttypes.h>
-#include <iomanip>
-#include <iostream>
-#include <memory>
-#include <vector>
 #include <set>
 
 #if (BOOST_VERSION >= 106400)
@@ -41,7 +33,7 @@
 #pragma warning (disable : 4244) // Addresses Boost conversion Windows build warnings
 #endif
 
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/process.hpp>
 #include <boost/process/child.hpp>
 #include <boost/process/env.hpp>
@@ -1203,7 +1195,7 @@ XclBinUtilities::exec(const fs::path &cmd,
   std::future<std::string> data_stdout;
   std::future<std::string> data_stderr;
 
-  boost::asio::io_service svc;
+  boost::asio::io_context svc;
   boost::process::child runningProcess( cmd.string(),
                                         args,
                                         boost::process::std_out > data_stdout,

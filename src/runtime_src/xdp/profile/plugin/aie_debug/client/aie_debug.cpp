@@ -63,7 +63,7 @@ namespace xdp {
     xrt::bo resultBO;
     uint32_t* output = nullptr;
     try {
-      resultBO = xrt_core::bo_int::create_debug_bo(hwContext, 0x20000);
+      resultBO = xrt_core::bo_int::create_bo(hwContext, 0x20000, xrt_core::bo_int::use_type::debug);
       output = resultBO.map<uint32_t*>();
       memset(output, 0, 0x20000);
     } catch (std::exception& e) {
@@ -162,7 +162,7 @@ namespace xdp {
       // Traverse all active tiles for this module type
       for (auto& tileMetric : configMetrics) {
         auto tile        = tileMetric.first;
-        auto tileOffset  = XAie_GetTileAddr(&aieDevInst, tile.row, tile.col);
+        auto tileOffset = (tile.col << 25) + (tile.row << 20);
 
         for (int i = 0; i < Regs.size(); i++) {
           op_debug_data.emplace_back(register_data_t{Regs[i] + tileOffset});

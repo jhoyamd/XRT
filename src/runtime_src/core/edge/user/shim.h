@@ -346,6 +346,7 @@ public:
   zynqaie::aied* getAied();
   int getBOInfo(drm_zocl_info_bo &info);
   void registerAieArray();
+  void reset_aie_array();
   bool isAieRegistered();
   int getPartitionFd(drm_zocl_aie_fd &aiefd);
   int resetAIEArray(drm_zocl_aie_reset &reset);
@@ -357,6 +358,9 @@ public:
   xrt::aie::access_mode getAIEAccessMode();
   void setAIEAccessMode(xrt::aie::access_mode am);
 #endif
+
+public:
+  inline bool get_hw_context_enable() { return hw_context_enable; }
 
 private:
   std::shared_ptr<xrt_core::device> mCoreDevice;

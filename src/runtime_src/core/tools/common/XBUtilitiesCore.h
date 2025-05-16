@@ -1,18 +1,6 @@
-/**
- * Copyright (C) 2019-2022 Xilinx, Inc
- *
- * Licensed under the Apache License, Version 2.0 (the "License"). You may
- * not use this file except in compliance with the License. A copy of the
- * License is located at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2019-2022 Xilinx, Inc
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef __XBUtilitiesCore_h_
 #define __XBUtilitiesCore_h_
@@ -48,10 +36,14 @@ namespace XBUtilities {
    */
   void setVerbose(bool _bVerbose);
   bool getVerbose();
+
+  void setElf(bool _bElf);
+  bool getElf();
+
   void setTrace(bool _bVerbose);
 
-  void setShowHidden(bool _bShowHidden);
-  bool getShowHidden();
+  void setAdvance(bool _bAdvance);
+  bool getAdvance();
 
   void setForce(bool _bForce);
   bool getForce();

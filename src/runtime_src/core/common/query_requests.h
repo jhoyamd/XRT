@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2020-2022 Xilinx, Inc
-// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
 
 #ifndef xrt_core_common_query_requests_h
 #define xrt_core_common_query_requests_h
@@ -60,6 +60,7 @@ enum class key_type
   xclbin_name,
   sequence_name,
   elf_name,
+  mobilenet,
 
   dma_threads_raw,
 
@@ -321,6 +322,7 @@ enum class key_type
   xgq_scaling_temp_override,
   performance_mode,
   preemption,
+  frame_boundary_preemption,
   debug_ip_layout_path,
   debug_ip_layout,
   num_live_processes,
@@ -531,7 +533,7 @@ struct edge_vendor : request
 };
 
 /**
- * Used to retieve the path to a configuration file required for the 
+ * Used to retieve the configuration required for the 
  * current device assuming a valid instance "type" is passed. The shim
  * decides the appropriate path and name to return, absolving XRT of
  * needing to know where to look.
@@ -571,7 +573,8 @@ struct xrt_smi_lists : request
 {
   enum class type {
     validate_tests,
-    examine_reports
+    examine_reports,
+    configure_option_options,
   };
   using result_type = std::vector<std::tuple<std::string, std::string, std::string>>;
   static const key_type key = key_type::xrt_smi_lists;
@@ -598,7 +601,12 @@ struct xclbin_name : request
 {
   enum class type {
     validate,
-    gemm
+    gemm,
+    validate_elf,
+    gemm_elf,
+    mobilenet_elf,
+    preemption_4x4,
+    preemption_4x8  
   };
 
   static std::string
@@ -609,6 +617,16 @@ struct xclbin_name : request
         return "validate";
       case type::gemm:
         return "gemm";
+      case type::validate_elf:
+        return "validate_elf";
+      case type::gemm_elf:
+        return "gemm_elf";
+      case type::preemption_4x4:
+        return "preemption_4x4";
+      case type::preemption_4x8:
+        return "preemption_4x8";
+      case type::mobilenet_elf:
+        return "mobilenet_elf";
     }
     return "unknown";
   }
@@ -633,8 +651,7 @@ struct sequence_name : request
     df_bandwidth,
     tct_one_column,
     tct_all_column,
-    gemm_int8,
-    aie_reconfig_overhead
+    gemm_int8
   };
 
   static std::string
@@ -649,8 +666,6 @@ struct sequence_name : request
         return "tct_all_column";
       case type::gemm_int8:
         return "gemm_int8";
-      case type::aie_reconfig_overhead:
-        return "aie_reconfig_overhead";
     }
     return "unknown";
   }
@@ -672,15 +687,45 @@ struct sequence_name : request
 struct elf_name : request
 {
   enum class type {
-    nop
+    df_bandwidth, 
+    tct_one_column, 
+    tct_all_column, 
+    aie_reconfig_overhead,
+    gemm_int8, 
+    nop,
+    preemption_noop_4x4,
+    preemption_noop_4x8,
+    preemption_memtile_4x4,
+    preemption_memtile_4x8, 
+    mobilenet
   };
 
   static std::string
   enum_to_str(const type& type)
   {
     switch (type) {
+      case type::df_bandwidth:
+        return "df_bandwidth";
+      case type::tct_one_column:
+        return "tct_one_column";
+      case type::tct_all_column:
+        return "tct_all_column";
+      case type::aie_reconfig_overhead:
+        return "aie_reconfig_overhead";
+      case type::gemm_int8:
+        return "gemm_int8";
       case type::nop:
         return "nop";
+      case type::preemption_noop_4x4:
+        return "preemption_noop_4x4";
+      case type::preemption_noop_4x8:
+        return "preemption_noop_4x8";
+      case type::preemption_memtile_4x4:
+        return "preemption_memtile_4x4";
+      case type::preemption_memtile_4x8:
+        return "preemption_memtile_4x8";
+      case type::mobilenet:
+        return "mobilenet";
     }
     return "unknown";
   }
@@ -688,6 +733,36 @@ struct elf_name : request
   using result_type = std::string;
   static const key_type key = key_type::elf_name;
   static const char* name() { return "elf_name"; }
+
+  virtual std::any
+  get(const device*, const std::any& req_type) const override = 0;
+};
+
+struct mobilenet : request 
+{
+  enum class type {
+    mobilenet_ifm,
+    mobilenet_param,
+    buffer_sizes
+  };
+
+  static std::string
+  enum_to_str(const type& type)
+  {
+    switch (type) {
+      case type::mobilenet_ifm:
+        return "mobilenet_ifm";
+      case type::mobilenet_param:
+        return "mobilenet_param";
+      case type::buffer_sizes:
+        return "buffer_sizes";
+    }
+    return "unknown";
+  }
+
+  using result_type = std::string;
+  static const key_type key = key_type::mobilenet;
+  static const char* name() { return "mobilenet"; }
 
   virtual std::any
   get(const device*, const std::any& req_type) const override = 0;
@@ -1290,11 +1365,11 @@ struct xrt_resource_raw : request
    */
   enum class resource_type
   {
-    ipu_clk_max,   // Max H-Clocks, query returns uint64 value
-    ipu_tops_max,  // Max TOPs, query returns double value
-    ipu_task_max,  // Max Tasks, query returns uint64 value
-    ipu_tops_curr, // Current TOPs, query returns double value
-    ipu_task_curr  // Current Tasks, query returns uint64 value
+    npu_clk_max,   // Max H-Clocks, query returns uint64 value
+    npu_tops_max,  // Max TOPs, query returns double value
+    npu_task_max,  // Max Tasks, query returns uint64 value
+    npu_tops_curr, // Current TOPs, query returns double value
+    npu_task_curr  // Current Tasks, query returns uint64 value
   };
 
   /**
@@ -1318,15 +1393,15 @@ struct xrt_resource_raw : request
   {
     switch (type)
     {
-    case resource_type::ipu_clk_max:
+    case resource_type::npu_clk_max:
       return "Max Supported H-Clocks";
-    case resource_type::ipu_tops_max:
+    case resource_type::npu_tops_max:
       return "Max Supported TOPs";
-    case resource_type::ipu_task_max:
+    case resource_type::npu_task_max:
       return "Max Supported Tasks";
-    case resource_type::ipu_tops_curr:
+    case resource_type::npu_tops_curr:
       return "Current TOPs";
-    case resource_type::ipu_task_curr:
+    case resource_type::npu_task_curr:
       return "Current Tasks";
     default:
       throw xrt_core::internal_error("enum value does not exists");
@@ -1878,6 +1953,7 @@ struct aie_partition_info : request
     uint64_t    errors = 0;
     uint64_t    pasid = 0;
     qos_info    qos {};
+    uint64_t    suspensions;    // Suspensions by context switching and idle detection
   };
 
   using result_type = std::vector<struct data>;
@@ -3965,7 +4041,7 @@ struct performance_mode : request
 };
 
 /*
- * this request force enables or disables pre-emption globally
+ * this request force enables or disables layer boundary pre-emption globally
  * 1: enable; 0: disable
 */
 struct preemption : request
@@ -3974,6 +4050,25 @@ struct preemption : request
   using value_type = uint32_t;   // put value type
 
   static const key_type key = key_type::preemption;
+
+  virtual std::any
+  get(const device*) const override = 0;
+
+  virtual void
+  put(const device*, const std::any&) const override = 0;
+
+};
+
+/*
+ * this request force enables or disables frame boundary pre-emption globally
+ * 1: enable; 0: disable
+*/
+struct frame_boundary_preemption : request
+{
+  using result_type = uint32_t;  // get value type
+  using value_type = uint32_t;   // put value type
+
+  static const key_type key = key_type::frame_boundary_preemption;
 
   virtual std::any
   get(const device*) const override = 0;

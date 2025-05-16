@@ -17,6 +17,7 @@
 
 #include <linux/vmalloc.h>
 #include <linux/string.h>
+#include <linux/mutex.h>
 #include <ert.h>
 #include "../xocl_drv.h"
 #include "mgmt-ioctl.h"
@@ -43,6 +44,10 @@
 #define	COPY_SCHE(ert, buf, len)		\
 	(ert->fw_addr ?			\
 	 xocl_memcpy_toio(ert->fw_addr, buf, len) : 0)
+
+/* mutex to handle race conditions when accessing image address */
+static DEFINE_MUTEX(ert_mutex);
+
 enum {
 	MB_UNINITIALIZED,
 	MB_INITIALIZED,
@@ -248,9 +253,10 @@ static ssize_t image_write(struct file *filp, struct kobject *kobj,
 {
 	struct xocl_ert *ert =
 		dev_get_drvdata(container_of(kobj, struct device, kobj));
-
+	mutex_lock(&ert_mutex);
 	ert->sche_binary_length = (u32)_image_write(&ert->sche_binary,
 			ert->sche_binary_length, buffer, off, count);
+	mutex_unlock(&ert_mutex);
 
 	return ert->sche_binary_length ? count : -ENOMEM;
 }
@@ -361,7 +367,7 @@ static struct xocl_mb_funcs ert_ops = {
 	.stop			= stop_ert,
 };
 
-static int ert_remove(struct platform_device *pdev)
+static int __ert_remove(struct platform_device *pdev)
 {
 	struct xocl_ert *ert;
 	void *hdl;
@@ -395,6 +401,15 @@ static int ert_remove(struct platform_device *pdev)
 	xocl_drvinst_free(hdl);
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
+static void ert_remove(struct platform_device *pdev)
+{
+	__ert_remove(pdev);
+}
+#else
+#define ert_remove __ert_remove
+#endif
 
 static int ert_probe(struct platform_device *pdev)
 {

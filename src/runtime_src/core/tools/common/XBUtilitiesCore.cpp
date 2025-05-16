@@ -1,18 +1,7 @@
-/**
- * Copyright (C) 2019-2022 Xilinx, Inc
- *
- * Licensed under the Apache License, Version 2.0 (the "License"). You may
- * not use this file except in compliance with the License. A copy of the
- * License is located at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2019-2022 Xilinx, Inc
+// Copyright (C) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
+
 
 // ------ I N C L U D E   F I L E S -------------------------------------------
 // Local - Include Files
@@ -37,8 +26,9 @@ using namespace XBUtilities;
 static bool m_bVerbose = false;
 static bool m_bTrace = false;
 static bool m_disableEscapeCodes = false;
-static bool m_bShowHidden = false;
+static bool m_bAdvance = false;
 static bool m_bForce = false;
+static bool m_bElf = false; 
 
 
 // ------ F U N C T I O N S ---------------------------------------------------
@@ -63,6 +53,20 @@ XBUtilities::getVerbose()
 }
 
 void
+XBUtilities::setElf(bool _bElf)
+{
+  m_bElf = _bElf;
+  
+  if (_bElf == true)
+    verbose("Enabling ELF");
+}
+
+bool XBUtilities::getElf()
+{
+  return m_bElf;
+}
+
+void
 XBUtilities::setTrace(bool _bTrace)
 {
   if (_bTrace)
@@ -75,20 +79,20 @@ XBUtilities::setTrace(bool _bTrace)
 
 
 void
-XBUtilities::setShowHidden(bool _bShowHidden)
+XBUtilities::setAdvance(bool _bAdvance)
 {
-  if (_bShowHidden)
+  if (_bAdvance)
     trace("Hidden commands and options will be shown.");
   else
     trace("Hidden commands and options will be hidden");
 
-  m_bShowHidden = _bShowHidden;
+  m_bAdvance = _bAdvance;
 }
 
 bool
-XBUtilities::getShowHidden()
+XBUtilities::getAdvance()
 {
-  return m_bShowHidden;
+  return m_bAdvance;
 }
 
 void

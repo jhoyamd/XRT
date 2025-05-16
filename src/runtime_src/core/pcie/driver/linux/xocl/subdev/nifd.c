@@ -317,6 +317,10 @@ static long readback_variable(struct xocl_nifd* nifd, void __user *arg)
     if (copy_from_user(&num_bits, arg, sizeof(unsigned int)))
         return -EFAULT;
 
+    // Validate num_bits to prevent integer overflow
+    if (num_bits > UINT_MAX / 2 - 1)
+	return -EINVAL;
+
     // We pack the results into the space for the result.  Each
     // frame + offset pair will read a single bit that gets packed.
     result_space_size = num_bits % 32 ? num_bits / 32 + 1 : num_bits / 32;
@@ -459,6 +463,11 @@ static long add_breakpoints(struct xocl_nifd* nifd, void __user *arg)
     // So the total size of the payload will be 3 times the number
     // of breakpoints plus an additional unsigned int to store the overall
     // condition
+
+    // Validate num_breakpoints to prevent integer overflow
+    if (num_breakpoints > UINT_MAX / (3 * sizeof(unsigned int)) - 1)
+        return -EINVAL;
+
     total_data_payload_size = ((num_breakpoints*3) + 1) * sizeof(unsigned int);
 
     kernel_memory = (unsigned int *)(vmalloc(total_data_payload_size));
@@ -629,7 +638,7 @@ failed:
     return err;
 }
 
-static int nifd_remove(struct platform_device *pdev)
+static int __nifd_remove(struct platform_device *pdev)
 {
     struct xocl_nifd *nifd;
     struct xocl_dev_core *core;
@@ -653,6 +662,15 @@ static int nifd_remove(struct platform_device *pdev)
 
     return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
+static void nifd_remove(struct platform_device *pdev)
+{
+    __nifd_remove(pdev);
+}
+#else
+#define nifd_remove __nifd_remove
+#endif
 
 struct xocl_drv_private nifd_priv = {
 	.ops = NULL,

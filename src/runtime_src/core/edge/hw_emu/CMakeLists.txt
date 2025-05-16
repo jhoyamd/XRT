@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2019-2022 Xilinx, Inc. All rights reserved.
-#
+# Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
 set(EM_SRC_DIR  "${CMAKE_CURRENT_SOURCE_DIR}")
 set(COMMON_EM_SRC_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/../user")
 set(XDP_PLUGIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../user/plugin/xdp")
@@ -53,26 +53,18 @@ endif()
 add_definitions(-DXCLHAL_MAJOR_VER=1 -DXCLHAL_MINOR_VER=0 -D__HWEM__)
 add_library(core_edgeuser_plugin_xdp_hw_em_objects OBJECT ${XDP_PLUGIN_HW_EM_FILES})
 
-# Bypass binary targets if clangtidy is enabled,
-# same targets are defined for DC
-if (${XRT_CLANGTIDY_REVIEW})
-  return()
-endif()
+set(AIE_BUILD_DEFINED "$<BOOL:DEFINED XRT_AIE_BUILD>")
+set(VE2_DEFINED "$<BOOL:DEFINED EDGE_VE2>")
+set(AIE_TARGET_EXISTS "$<TARGET_EXISTS:core_edge_user_aie_object_hw_em>")
+set(VE2_TARGET_EXISTS "$<TARGET_EXISTS:core_edge_ve2_hw_emu_objects>")
 
-if (DEFINED XRT_AIE_BUILD)
-  add_library(xrt_hwemu SHARED ${EM_SRC_FILES}
-    $<TARGET_OBJECTS:core_edgeuser_plugin_xdp_hw_em_objects>
-    $<TARGET_OBJECTS:core_common_objects>
-    $<TARGET_OBJECTS:core_edge_user_aie_object_hw_em>
-    $<TARGET_OBJECTS:core_edge_common_objects>
-    )
-else()
 add_library(xrt_hwemu SHARED ${EM_SRC_FILES}
   $<TARGET_OBJECTS:core_edgeuser_plugin_xdp_hw_em_objects>
   $<TARGET_OBJECTS:core_common_objects>
   $<TARGET_OBJECTS:core_edge_common_objects>
-  )
-endif()
+  $<$<AND:${AIE_BUILD_DEFINED},${AIE_TARGET_EXISTS}>:$<TARGET_OBJECTS:core_edge_user_aie_object_hw_em>>
+  $<$<AND:${VE2_DEFINED},${VE2_TARGET_EXISTS}>:$<TARGET_OBJECTS:core_edge_ve2_hw_emu_objects>>
+)
 
 set_target_properties(xrt_hwemu PROPERTIES VERSION ${XRT_VERSION_STRING}
   SOVERSION ${XRT_SOVERSION})

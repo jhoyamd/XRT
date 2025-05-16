@@ -18,6 +18,7 @@
 #include "tools/common/reports/ReportVmrStatus.h"
 #include "ReportPlatform.h"
 
+
 // Note: Please insert the reports in the order to be displayed (current alphabetical)
 ReportCollection SubCmdExamineInternal::uniqueReportCollection = {
   // Common reports

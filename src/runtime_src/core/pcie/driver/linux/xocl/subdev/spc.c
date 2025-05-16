@@ -74,7 +74,7 @@ static struct attribute_group spc_attr_group = {
 			   .attrs = spc_attrs,
 };
 
-static int spc_remove(struct platform_device *pdev)
+static int __spc_remove(struct platform_device *pdev)
 {
 	struct xocl_spc *spc;
 	void *hdl;
@@ -98,6 +98,15 @@ static int spc_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
+static void spc_remove(struct platform_device *pdev)
+{
+	__spc_remove(pdev);
+}
+#else
+#define spc_remove __spc_remove
+#endif
 
 static int spc_probe(struct platform_device *pdev)
 {
@@ -205,6 +214,12 @@ static int spc_mmap(struct file *filp, struct vm_area_struct *vma)
 	BUG_ON(!spc);
 
 	off = vma->vm_pgoff << PAGE_SHIFT;
+
+	if (off > spc->range) {
+		xocl_err(spc->dev, "invalid mmap offset: 0x%lx", off);
+		return -EINVAL;
+	}
+
 	/* BAR physical address */
 	phys = spc->start_paddr + off;
 	vsize = vma->vm_end - vma->vm_start;

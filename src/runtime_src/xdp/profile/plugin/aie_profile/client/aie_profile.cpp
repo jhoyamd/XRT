@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022-2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2022-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -115,7 +115,7 @@ namespace xdp {
     }
 
     // Get partition columns
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(metadata->getHandle());
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(metadata->getHandle());
     // Currently, assuming only one Hw Context is alive at a time
     uint8_t startCol = static_cast<uint8_t>(aiePartitionPt.front().second.get<uint64_t>("start_col"));
 
@@ -320,7 +320,7 @@ namespace xdp {
     xrt::bo resultBO;
     uint32_t* output = nullptr;
     try {
-      resultBO = xrt_core::bo_int::create_debug_bo(context, 0x20000);
+      resultBO = xrt_core::bo_int::create_bo(context, 0x20000, xrt_core::bo_int::use_type::debug);
       output = resultBO.map<uint32_t*>();
       memset(output, 0, 0x20000);
     } catch (std::exception& e) {

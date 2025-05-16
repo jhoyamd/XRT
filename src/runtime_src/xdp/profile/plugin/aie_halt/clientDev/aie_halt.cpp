@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2024 Advanced Micro Devices, Inc. - All rights reserved
+ * Copyright (C) 2024-2025 Advanced Micro Devices, Inc. - All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License"). You may
  * not use this file except in compliance with the License. A copy of the
@@ -35,7 +35,7 @@
 
 extern "C" {
   #include <xaiengine.h>
-  #include <xaiengine/xaiegbl_params.h>
+  #include <xaiengine/xaiemlgbl_params.h>
 }
 
 #ifdef _WIN32
@@ -113,7 +113,7 @@ namespace xdp {
 
     uint64_t startCol = 0, numCols = 0;
 
-    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfoClient(hwCtxImpl);
+    boost::property_tree::ptree aiePartitionPt = xdp::aie::getAIEPartitionInfo(hwCtxImpl);
     for (const auto& e : aiePartitionPt) {
       startCol = e.second.get<uint64_t>("start_col");
       numCols  = e.second.get<uint64_t>("num_cols");
@@ -122,13 +122,19 @@ namespace xdp {
     }
 
     std::stringstream msg;
-    msg << " Adding CoreDebugHalts starting column " << startCol << " for " << numCols << " columns." << std::endl;
+    msg << " Set AIE Core breakpoint at Lock Acquire Req Instr, Start col "
+        << startCol << ", Num col " << numCols << std::endl;
     xrt_core::message::send(xrt_core::message::severity_level::info, "XRT", msg.str());
 
+    // Initial break on Event 44: Lock Acquire instruction
+    constexpr uint32_t AIE_EVENT_INSTR_LOCK_ACQ_REQ = 0x2C;
+    uint32_t dbg_ctrl_1_reg = AIE_EVENT_INSTR_LOCK_ACQ_REQ << XAIEMLGBL_CORE_MODULE_DEBUG_CONTROL1_DEBUG_HALT_CORE_EVENT0_LSB;
     XAie_StartTransaction(&aieDevInst, XAIE_TRANSACTION_DISABLE_AUTO_FLUSH);
     for (uint8_t c = static_cast<uint8_t>(startCol) ; c < (static_cast<uint8_t>(startCol + numCols)) ; c++ ) {
       for (uint8_t r = 2; r < 6 ; r++) {
-        XAie_CoreDebugHalt(&aieDevInst, XAie_TileLoc(c, r));
+        auto tileOffset = XAie_GetTileAddr(&aieDevInst, r, c);
+        XAie_Write32(&aieDevInst, tileOffset + XAIEMLGBL_CORE_MODULE_DEBUG_CONTROL1, dbg_ctrl_1_reg);
+        //XAie_CoreDebugHalt(&aieDevInst, XAie_TileLoc(c, r));
       }
     }
 
